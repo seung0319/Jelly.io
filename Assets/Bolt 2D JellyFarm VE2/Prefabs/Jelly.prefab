@@ -198,9 +198,9 @@ MonoBehaviour:
     ID: 0
     level: 0
     exp: 0
-    max_exp: 0
-    req_exp: 0
-  delay: 5
+    max_exp: 100
+    req_exp: 50
+  delay: 3
   time: 2
 --- !u!1 &7839088079441025711
 GameObject:

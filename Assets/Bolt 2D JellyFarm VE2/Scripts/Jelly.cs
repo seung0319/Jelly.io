@@ -8,6 +8,7 @@ public class JellyStat
 {
     public int ID;
     public int level;
+    public int sprite;
     public float exp;
     public float max_exp;
     public float req_exp;
@@ -18,6 +19,8 @@ public class Jelly : MonoBehaviour
 
     public int delay;
     public int time;
+    public static int multiplier = 10;
+
 
     float speed_X;
     float speed_Y;
@@ -51,9 +54,9 @@ public class Jelly : MonoBehaviour
         }
         if(jellyStat.exp > jellyStat.req_exp * jellyStat.level && jellyStat.level < 3)
         {
+            //jellyStat.max_exp = jellyStat.req_exp * jellyStat.level;
             gamemanager.ChangeAnimatorController(animator, ++jellyStat.level);
         }
-       
 
         if (isWalk)
         {
@@ -74,6 +77,8 @@ public class Jelly : MonoBehaviour
             isWalk = true;
             // 애니메이터 파라미터 바꾸는 코드
             animator.SetBool("isWalk", true);
+            gamemanager.jelly_point += (jellyStat.ID + 1) * jellyStat.level * multiplier;
+            PlayerPrefs.SetInt("JellyPoint", gamemanager.jelly_point);
             yield return new WaitForSeconds(time);
             isWalk = false;
             animator.SetBool("isWalk", false);
@@ -87,7 +92,7 @@ public class Jelly : MonoBehaviour
         {
             spriteRenderer.flipX = speed_X < 0;
         }
-
+        
         transform.Translate(speed_X, speed_Y, 0f);
     }
 
@@ -109,13 +114,13 @@ public class Jelly : MonoBehaviour
         isWalk = false;
         animator.SetBool("isWalk", false);
         animator.SetTrigger("doTouch");
-        if(jellyStat.exp < jellyStat.max_exp)
+        if (jellyStat.exp < jellyStat.max_exp)
         {
             ++jellyStat.exp;
         }
-        gamemanager.jelly_point += (jellyStat.ID+1) * jellyStat.level * 10;
+        gamemanager.jelly_point += (jellyStat.ID + 1) * jellyStat.level * multiplier;
+        PlayerPrefs.SetInt("JellyPoint", gamemanager.jelly_point);
     }
-
     float pick_time;
 
     private void OnMouseDrag()
