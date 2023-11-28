@@ -7,6 +7,7 @@ using UnityEngine;
 public class JellyStat
 {
     public int ID;
+    public int idx;
     public int level;
     public int sprite;
     public float exp;
@@ -31,6 +32,8 @@ public class Jelly : MonoBehaviour
     SpriteRenderer spriteRenderer;
     Animator animator;
 
+    public string jellydata;
+
     // Start is called before the first frame update
     void Start()
     {
@@ -40,6 +43,9 @@ public class Jelly : MonoBehaviour
 
         isDelay = false;
         isWalk = false;
+        
+        if(jellyStat.level >= 1)
+            gamemanager.ChangeAnimatorController(animator, jellyStat.level);
 
         StartCoroutine("JellyAction");
        
@@ -56,12 +62,17 @@ public class Jelly : MonoBehaviour
         {
             //jellyStat.max_exp = jellyStat.req_exp * jellyStat.level;
             gamemanager.ChangeAnimatorController(animator, ++jellyStat.level);
+            SoundManager.instance.SEPlay(SEType.Grow);
         }
 
         if (isWalk)
         {
             Move();
         }
+
+        jellyStat.ID = gamemanager.Jellies.IndexOf(gameObject);
+        jellydata = $"{jellyStat.ID},{jellyStat.idx},{jellyStat.level},{jellyStat.sprite},{jellyStat.exp}";
+        PlayerPrefs.SetString($"{jellyStat.ID}J", $"{jellydata}");
     }
 
     IEnumerator JellyAction()
@@ -77,8 +88,11 @@ public class Jelly : MonoBehaviour
             isWalk = true;
             // 애니메이터 파라미터 바꾸는 코드
             animator.SetBool("isWalk", true);
-            gamemanager.jelly_point += (jellyStat.ID + 1) * jellyStat.level * multiplier;
+            int getJellyPoint = (jellyStat.idx + 1) * jellyStat.level * 10;
+            gamemanager.jelly_point += getJellyPoint;
+            gamemanager.AddJellyPoint(getJellyPoint);
             PlayerPrefs.SetInt("JellyPoint", gamemanager.jelly_point);
+            time = UnityEngine.Random.Range(1, 5);
             yield return new WaitForSeconds(time);
             isWalk = false;
             animator.SetBool("isWalk", false);
@@ -118,7 +132,10 @@ public class Jelly : MonoBehaviour
         {
             ++jellyStat.exp;
         }
-        gamemanager.jelly_point += (jellyStat.ID + 1) * jellyStat.level * multiplier;
+        SoundManager.instance.SEPlay(SEType.Touch);
+        int getJellyPoint = (jellyStat.idx + 1) * jellyStat.level * multiplier;
+        gamemanager.jelly_point += getJellyPoint;
+        gamemanager.AddJellyPoint(getJellyPoint);
         PlayerPrefs.SetInt("JellyPoint", gamemanager.jelly_point);
     }
     float pick_time;
@@ -145,30 +162,39 @@ public class Jelly : MonoBehaviour
 
         if (gamemanager.isSell)
         {
-            gamemanager.GetGold(jellyStat.ID, jellyStat.level);
+            if (gamemanager.Jellies.Count - 1 == 0)
+            {
+                Debug.Log("젤리가 0일순 없엉");
+                return;
+            }
+            gamemanager.Jellies.Remove(gameObject);
+            gamemanager.GetGold(jellyStat.idx, jellyStat.level);
+            gamemanager.jellyNum--;
+            PlayerPrefs.SetInt("JellyNum", gamemanager.jellyNum);
             Destroy(gameObject);
         }
-
-        float pos_X = transform.position.x;
-        float pos_Y = transform.position.y;
-        if (pos_X > 6f)
+        else
         {
-            pos_X = 5.7f;
+            float pos_X = transform.position.x;
+            float pos_Y = transform.position.y;
+            if (pos_X > 6f)
+            {
+                pos_X = 5.7f;
+            }
+            if (pos_X < -6f)
+            {
+                pos_X = -5.7f;
+            }
+            if (pos_Y > 1.2f)
+            {
+                pos_Y = 1.0f;
+            }
+            if (pos_Y < -2.5f)
+            {
+                pos_Y = -2.2f;
+            }
+            SoundManager.instance.SEPlay(SEType.Drop);
+            transform.position = new Vector3(pos_X, pos_Y, 0);
         }
-        if (pos_X < -6f)
-        {
-            pos_X = -5.7f;
-        }
-        if (pos_Y > 1.2f)
-        {
-            pos_Y = 1.0f;
-        }
-        if (pos_Y < -2.5f)
-        {
-            pos_Y = -2.2f;
-        }
-
-        transform.position = new Vector3(pos_X, pos_Y, 0);
     }
-
 }

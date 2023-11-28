@@ -2,8 +2,8 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using TMPro;
-using UnityEditor.Animations;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 public class GameManager : MonoBehaviour
@@ -11,10 +11,12 @@ public class GameManager : MonoBehaviour
     public int jelly_point;
     public int gold;
 
+    public GameObject JellyPrefab;
+
     public TextMeshProUGUI jelly_text;
     public TextMeshProUGUI gold_text;
 
-    public AnimatorController[] acs;
+    public RuntimeAnimatorController[] acs;
     public int[] Sell_List;
     public Sprite[] Sprite_List;
     public string[] Name_List;
@@ -39,55 +41,73 @@ public class GameManager : MonoBehaviour
     public Image upgrade_panel;
     Animator upgrade_Animator;
 
+    public Animator addGold;
+    public Animator addJellyPoint;
+    public Animator minusGold;
+    public Animator minusJellyPoint;
+
     public GameObject Lock;
     public Image Lock_group_jelly_Image;
     public TextMeshProUGUI Lock_group_jelly_text;
 
     bool[] jelly_unlock_list;
 
-    public int jellyNum = 0;
-    public int jellyLimit = 5;
-    string[] jellyData;
-    string[] newJellyData;
+    public int jellyNum;
+    public int jellyLimit;
+    public TextMeshProUGUI jellyNumText;
+
+    public Animator optionAnimator;
+    public GameObject optionPanel;
+
+    public List<GameObject> Jellies = new();
+
+    public string[] newJellyData = new string[5];
 
     private void Awake()
     {
         //PlayerPrefs.DeleteAll();
-        if(jellyNum == 0)
-        {
-            GameObject jelly_object = Instantiate(JellyPrefab, new Vector2(0, 0), Quaternion.identity);
-            Jelly jelly = jelly_object.GetComponent<Jelly>();
-
-            jelly_object.name = Name_List[jellyNum];
-            jelly.jellyStat.ID = jellyNum;
-            jelly.GetComponent<SpriteRenderer>().sprite = Sprite_List[jellyNum];
-            jellyNum++;
-        }
         isSell = false;
         jelly_Animator = jelly_panel.GetComponent<Animator>();
         upgrade_Animator = upgrade_panel.GetComponent<Animator>();
+
         gold = PlayerPrefs.GetInt("Gold");
         //gold = 1000;
         jelly_point = PlayerPrefs.GetInt("JellyPoint");
-        PlayerPrefs.SetInt("0", 1);
-        
-        //jellyNum = PlayerPrefs.GetInt("JellyNum");
-        //for(int i = 0; i < jellyNum; i++)
-        //{
-        //    newJellyData = PlayerPrefs.GetString($"{jellyNum}j").Split(",");
-        //    GameObject jelly_object = Instantiate(JellyPrefab, new Vector2(i, 0), Quaternion.identity);
-        //    Jelly jelly = jelly_object.GetComponent<Jelly>();
-        //    jelly.jellyStat.ID = int.Parse(newJellyData[0]);
-        //    jelly.jellyStat.level = int.Parse(newJellyData[1]);
-        //    jelly.jellyStat.sprite = int.Parse(newJellyData[2]);
-        //    jelly.jellyStat.exp = float.Parse(newJellyData[3]);
 
-        //    jelly_object.name = Name_List[jelly.jellyStat.sprite];
-        //    jelly.GetComponent<SpriteRenderer>().sprite = Sprite_List[jelly.jellyStat.sprite];
-        //}
+        // PlayerPrefs에 저장되어 있는 젤리 로드
+        jellyNum = PlayerPrefs.GetInt("JellyNum");
+        for (int i = 0; i < jellyNum; i++)
+        {
+            Debug.Log("Jelly loaded");
+            newJellyData = PlayerPrefs.GetString($"{i}J").Split(",");
+            GameObject tempJelly = Instantiate(JellyPrefab, new Vector2(0, 0), Quaternion.identity);
+            Jellies.Add(tempJelly);
+            Jelly jelly = Jellies[Jellies.Count - 1].GetComponent<Jelly>();
+            jelly.jellyStat.ID = int.Parse(newJellyData[0]);
+            jelly.jellyStat.idx = int.Parse(newJellyData[1]);
+            jelly.jellyStat.level = int.Parse(newJellyData[2]);
+            jelly.jellyStat.sprite = int.Parse(newJellyData[3]);
+            jelly.jellyStat.exp = float.Parse(newJellyData[4]);
+            Jellies[Jellies.Count - 1].name = Name_List[jelly.jellyStat.idx];
+            jelly.GetComponent<SpriteRenderer>().sprite = Sprite_List[jelly.jellyStat.sprite];
+        }
 
-
-        //gold_text.text = $"{Sell_List[0]}";
+        if (Jellies.Count == 0)
+        {
+            Debug.Log("처음시작");
+            PlayerPrefs.SetInt("Limit", 20);
+            PlayerPrefs.SetInt("LimitUp", 0);
+            PlayerPrefs.SetInt("Multiplier", 10);
+            PlayerPrefs.SetInt("MultiplierUp", 0);
+            JellyCreate();
+        }
+        else
+        {
+            jellyLimit = PlayerPrefs.GetInt("Limit");
+            Jelly.multiplier = PlayerPrefs.GetInt("Multiplier");
+            limitup = PlayerPrefs.GetInt("LimitUp");
+            multiplierup = PlayerPrefs.GetInt("MultiplierUp");
+        }
         Lock_group_jelly_text.text = $"{JellyPoint_List[0]}";
         jelly_unlock_list = new bool[Sprite_List.Length];
 
@@ -104,15 +124,17 @@ public class GameManager : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        
+        SoundManager.instance.BGM_Play(BGMType.InGame);
     }
 
-    // Update is called once per frame
-    void Update()
+    private void FixedUpdate()
     {
-        jelly_text.text = string.Format("{0:n0}", Mathf.SmoothStep(float.Parse(jelly_text.text), PlayerPrefs.GetInt("JellyPoint", jelly_point), 1f));
+        //jelly_text.text = string.Format("{0:n0}", Mathf.SmoothStep(float.Parse(jelly_text.text), PlayerPrefs.GetInt("JellyPoint", jelly_point), 1f));
+        jelly_text.text = string.Format("{0:n0}", Mathf.Lerp(jelly_point, PlayerPrefs.GetInt("JellyPoint", jelly_point), 0.5f));
 
-        gold_text.text = string.Format("{0:n0}", Mathf.SmoothStep(float.Parse(gold_text.text), PlayerPrefs.GetInt("Gold", gold), 1f));
+        gold_text.text = string.Format("{0:n0}", Mathf.Lerp(gold, PlayerPrefs.GetInt("Gold", gold), 0.5f));
+
+        jellyNumText.text = $"{Jellies.Count} / {jellyLimit}";
     }
 
     //private void LateUpdate()
@@ -133,9 +155,11 @@ public class GameManager : MonoBehaviour
 
     public void GetGold(int id, int level)
     {
-        gold += Sell_List[id] * level;
-        
+        int getGold = Sell_List[id] * level;
+        gold += getGold;
+        AddGold(getGold);
         PlayerPrefs.SetInt("Gold", gold);
+        SoundManager.instance.SEPlay(SEType.Sell);
     }
     public void ChangeAnimatorController(Animator animator, int level)
     {
@@ -147,27 +171,59 @@ public class GameManager : MonoBehaviour
     public void OnClickPanelEnter()
     {
         SetPage();
+        SoundManager.instance.SEPlay(SEType.Button);
         if (isJellyPanelClicked)
+        {
             jelly_Animator.SetTrigger("Hide");
+            jelly_panel.gameObject.GetComponent<Button>().interactable = false;
+        }
         else
+        {
             jelly_Animator.SetTrigger("Show");
+            jelly_panel.gameObject.GetComponent<Button>().interactable = true;
+        }
+            
         isJellyPanelClicked = !isJellyPanelClicked;
+    }
+
+    public bool isOptionPanelClicked;
+    public void Option()
+    {
+        SoundManager.instance.SEPlay(SEType.Button);
+        if (isOptionPanelClicked)
+        {
+            optionAnimator.SetTrigger("Hide");
+        }
+        else
+        {
+            optionAnimator.SetTrigger("Show");
+        }
+
+        isOptionPanelClicked = !isOptionPanelClicked;
     }
 
     public bool isUpgradePanelClicked;
     public void OnUpgradeClickPanelEnter()
     {
         SetUpgradePage();
+        SoundManager.instance.SEPlay(SEType.Button);
         if (isUpgradePanelClicked)
+        {
             upgrade_Animator.SetTrigger("Hide");
+            upgrade_panel.gameObject.GetComponent<Button>().interactable = false;
+        }
         else
+        {
             upgrade_Animator.SetTrigger("Show");
+            upgrade_panel.gameObject.GetComponent<Button>().interactable = true;
+        }
         isUpgradePanelClicked = !isUpgradePanelClicked;
     }
 
     public void PageUp()
     {
-        if(jelly_idx + 1 < Sprite_List.Length)
+        SoundManager.instance.SEPlay(SEType.Button);
+        if (jelly_idx + 1 < Sprite_List.Length)
         {
             jelly_idx++;
             SetPage();
@@ -176,6 +232,7 @@ public class GameManager : MonoBehaviour
 
     public void PageDown()
     {
+        SoundManager.instance.SEPlay(SEType.Button);
         if (jelly_idx - 1 >= 0)
         {
             jelly_idx--;
@@ -204,8 +261,8 @@ public class GameManager : MonoBehaviour
     {
         limitlv.text = $"Lv. {limitup + 1}";
         multlv.text = $"Lv. {multiplierup + 1}";
-        limitprice.text = $"Lv. {SkillUnlock_List[limitup]}";
-        multprice.text = $"Lv. {SkillUnlock_List[multiplierup]}";
+        limitprice.text = string.Format("{0:N0}", SkillUnlock_List[limitup]);
+        multprice.text = string.Format("{0:N0}", SkillUnlock_List[multiplierup]);
 
     }
     public void UnLock()
@@ -218,11 +275,14 @@ public class GameManager : MonoBehaviour
         jelly_unlock_list[jelly_idx] = true;
         SetPage();
         PlayerPrefs.SetInt(jelly_idx.ToString(), 1);
-        gold -= JellyUnlock_List[jelly_idx];
+        int minusGold = JellyUnlock_List[jelly_idx];
+        gold -= minusGold;
+        MinusGold(minusGold);
+        SoundManager.instance.SEPlay(SEType.Unlock);
         PlayerPrefs.SetInt("Gold", gold);
     }
 
-    public GameObject JellyPrefab;
+    
     public void Buy()
     {
         if(jelly_point < JellyPoint_List[jelly_idx]) 
@@ -231,24 +291,14 @@ public class GameManager : MonoBehaviour
             return;
         }
 
-        if (jellyNum < jellyLimit)
+        if (Jellies.Count < jellyLimit)
         {
-            jelly_point -= JellyPoint_List[jelly_idx];
+            SoundManager.instance.SEPlay(SEType.Sell);
+            int minusJellyPoint = JellyPoint_List[jelly_idx];
+            jelly_point -= minusJellyPoint;
+            MinusJellyPoint(minusJellyPoint);
             PlayerPrefs.SetInt("JellyPoint", jelly_point);
-            GameObject jelly_object = Instantiate(JellyPrefab, new Vector2(0, 0), Quaternion.identity);
-            Jelly jelly = jelly_object.GetComponent<Jelly>();
-
-            jelly_object.name = Name_List[jelly_idx];
-            jelly.jellyStat.ID = jelly_idx;
-            jelly.GetComponent<SpriteRenderer>().sprite = Sprite_List[jelly_idx];
-
-            jellyNum++;
-            //jelly.jellyStat.ID = jellyNum;
-            //jelly.GetComponent<SpriteRenderer>().sprite = Sprite_List[jelly_idx];
-            //jellyData[jellyNum] = $"{jelly.jellyStat.ID},{jelly.jellyStat.level},{jelly.jellyStat.sprite},{jelly.jellyStat.exp}";
-            //PlayerPrefs.SetString($"{jellyNum}j", $"{jellyData[jellyNum]}");
-            //jellyNum++;
-            //PlayerPrefs.SetInt("JellyNum", jellyNum);
+            JellyCreate();
         }
         else
             Debug.Log("젤리가 최대치입니다.");
@@ -264,17 +314,31 @@ public class GameManager : MonoBehaviour
             Debug.Log("잔액이 부족합니다.");
             return;
         }
-        if(limitup == 2)
+        else
         {
-            Debug.Log("업그레이드 최대치입니다.");
-            return;
+            if (limitup == 3)
+            {
+                limitlv.text = $"Lv. {limitup}";
+                limitprice.text = "";
+                Debug.Log("업그레이드 최대치입니다.");
+            }
+            else
+            {
+                SoundManager.instance.SEPlay(SEType.Sell);
+                int minusGold = SkillUnlock_List[multiplierup];
+                gold -= minusGold;
+                MinusGold(minusGold);
+                PlayerPrefs.SetInt("Gold", gold);
+                limitup++;
+                jellyLimit += 3;
+                PlayerPrefs.SetInt("LimitUp", limitup);
+                PlayerPrefs.SetInt("Limit", jellyLimit);
+                limitlv.text = $"Lv. {limitup + 1}";
+                limitprice.text = string.Format("{0:N0}", SkillUnlock_List[limitup]);
+                //limitex.text = $"Jelly Limitation+";
+            }
         }
-        gold -= SkillUnlock_List[limitup];
-        limitup++;
-        jellyLimit++;
-        limitlv.text = $"Lv. {limitup + 1}";
-        limitprice.text = $"Lv. {SkillUnlock_List[limitup]}";
-        //limitex.text = $"Jelly Limitation+";
+        
     }
 
     public TextMeshProUGUI multlv;
@@ -287,16 +351,77 @@ public class GameManager : MonoBehaviour
             Debug.Log("잔액이 부족합니다.");
             return;
         }
-        if (multiplierup == 2)
+        else
         {
-            Debug.Log("업그레이드 최대치입니다.");
-            return;
+            if (multiplierup == 3)
+            {
+                multlv.text = $"Lv. {multiplierup}";
+                multprice.text = "";
+                Debug.Log("업그레이드 최대치입니다.");
+            }
+            else
+            {
+                SoundManager.instance.SEPlay(SEType.Sell);
+                int minusGold = SkillUnlock_List[multiplierup];
+                gold -= minusGold;
+                MinusGold(minusGold);
+                PlayerPrefs.SetInt("Gold", gold);
+                multiplierup++;
+                Jelly.multiplier += 5;
+                PlayerPrefs.SetInt("MultiplierUp", multiplierup);
+                PlayerPrefs.SetInt("Multiplier", Jelly.multiplier);
+                multlv.text = $"Lv. {multiplierup + 1}";
+                multprice.text = string.Format("{0:N0}", SkillUnlock_List[multiplierup]);
+                //multex.text = $"Jelly Multiplier+";
+            }
         }
-        gold -= SkillUnlock_List[multiplierup+1];
-        multiplierup++;
-        Jelly.multiplier += 5;
-        multlv.text = $"Lv. {multiplierup + 1}";
-        multprice.text = $"Lv. {SkillUnlock_List[multiplierup]}";
-        //multex.text = $"Jelly Multiplier+";
+        
+    }
+
+    public void JellyCreate()
+    {
+        GameObject tempJelly = Instantiate(JellyPrefab, new Vector2(0, 0), Quaternion.identity);
+        Jellies.Add(tempJelly);
+        Jelly jelly = Jellies[Jellies.Count-1].GetComponent<Jelly>();
+        Jellies[Jellies.Count-1].name = Name_List[jelly_idx];
+        jelly.jellyStat.idx = jelly_idx;
+        jelly.GetComponent<SpriteRenderer>().sprite = Sprite_List[jelly_idx];
+        jellyNum++;
+        PlayerPrefs.SetInt("JellyNum", jellyNum);
+    }
+
+    public void AddGold(int gold)
+    {
+        addGold.gameObject.GetComponent<TextMeshProUGUI>().text = gold.ToString();
+        addGold.SetTrigger("Get");
+    }
+
+    public void AddJellyPoint(int jellypoint)
+    {
+        addJellyPoint.gameObject.GetComponent<TextMeshProUGUI>().text = jellypoint.ToString();
+        addJellyPoint.SetTrigger("Get");
+    }
+
+    public void MinusGold(int gold)
+    {
+        minusGold.gameObject.GetComponent<TextMeshProUGUI>().text = gold.ToString();
+        minusGold.SetTrigger("Minus");
+    }
+
+    public void MinusJellyPoint(int jellypoint)
+    {
+        minusJellyPoint.gameObject.GetComponent<TextMeshProUGUI>().text = jellypoint.ToString();
+        minusJellyPoint.SetTrigger("Minus");
+    }
+
+    public void ResetGame()
+    {
+        SceneManager.LoadScene(0);
+        PlayerPrefs.DeleteAll();
+    }
+
+    public void GameEnd()
+    {
+        Application.Quit();
     }
 }
